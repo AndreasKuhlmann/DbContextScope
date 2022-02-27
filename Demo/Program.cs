@@ -137,7 +137,7 @@ namespace Numero3.EntityFramework.Demo {
         public TDbContext CreateDbContext<TDbContext>() where TDbContext : DbContext {
             if (typeof(TDbContext) == typeof(UserManagementDbContext)) {
                 var config = new DbContextOptionsBuilder<UserManagementDbContext>()
-                    .UseInMemoryDatabase()
+                    .UseInMemoryDatabase("demo")
                     .ConfigureWarnings(warnings => {
                         warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning);
                     });

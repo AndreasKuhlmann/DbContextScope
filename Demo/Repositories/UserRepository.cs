@@ -43,7 +43,7 @@ namespace Numero3.EntityFramework.Demo.Repositories {
             return DbContext.Users.Find(userId);
         }
 
-        public Task<User> GetAsync(Guid userId) {
+        public ValueTask<User> GetAsync(Guid userId) {
             return DbContext.Users.FindAsync(userId);
         }
 
