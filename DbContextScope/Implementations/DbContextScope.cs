@@ -79,8 +79,8 @@ namespace EntityFrameworkCore.DbContextScope {
         }
 
         public async Task<int> SaveChangesAsync(CancellationToken cancelToken) {
-            if (cancelToken == default)
-                throw new ArgumentNullException("cancelToken");
+            //if (cancelToken == null)
+            //    throw new ArgumentNullException("cancelToken");
             if (_disposed)
                 throw new ObjectDisposedException("DbContextScope");
             if (_completed)
@@ -197,7 +197,7 @@ namespace EntityFrameworkCore.DbContextScope {
 
                 foreach (var toRefresh in entities)
                 {
-                    var stateInCurrentScope = (contextInCurrentScope.ChangeTracker as IInfrastructure<Microsoft.EntityFrameworkCore.ChangeTracking.Internal.IStateManager>).GetInfrastructure().TryGetEntry(toRefresh);
+                    var stateInCurrentScope = (contextInCurrentScope as Microsoft.EntityFrameworkCore.Internal.IDbContextDependencies).StateManager.TryGetEntry(toRefresh);
                     if (stateInCurrentScope != null) {
                         var entityType = stateInCurrentScope.Entity.GetType();
                         var key = stateInCurrentScope.EntityType.FindPrimaryKey();
@@ -205,7 +205,7 @@ namespace EntityFrameworkCore.DbContextScope {
                             .Select(s => entityType.GetProperty(s.Name).GetValue(stateInCurrentScope.Entity))
                             .ToArray();
 
-                        var stateInParentScope = (contextInCurrentScope.ChangeTracker as IInfrastructure<Microsoft.EntityFrameworkCore.ChangeTracking.Internal.IStateManager>).GetInfrastructure().TryGetEntry(key, keyValues);
+                        var stateInParentScope = (correspondingParentContext as Microsoft.EntityFrameworkCore.Internal.IDbContextDependencies).StateManager.TryGetEntry(key, keyValues);
                         if (stateInParentScope != null) {
                             if (stateInParentScope.EntityState == EntityState.Unchanged) {
                                 await correspondingParentContext.Entry(stateInParentScope.Entity).ReloadAsync().ConfigureAwait(false);
