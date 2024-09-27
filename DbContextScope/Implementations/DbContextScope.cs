@@ -15,24 +15,28 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace EntityFrameworkCore.DbContextScope {
-    public class DbContextScope : IDbContextScope {
+namespace EntityFrameworkCore.DbContextScope
+{
+    public class DbContextScope : IDbContextScope
+    {
         private bool _disposed;
-        private bool _readOnly;
+        private readonly bool _readOnly;
         private bool _completed;
-        private bool _nested;
-        private DbContextScope _parentScope;
-        private DbContextCollection _dbContexts;
+        private readonly bool _nested;
+        private readonly DbContextScope _parentScope;
+        private readonly DbContextCollection _dbContexts;
 
-        public IDbContextCollection DbContexts { get { return _dbContexts; } }
+        public IDbContextCollection DbContexts => _dbContexts;
 
         public DbContextScope(IDbContextFactory dbContextFactory = null) :
-            this(joiningOption: DbContextScopeOption.JoinExisting, readOnly: false, isolationLevel: null, dbContextFactory: dbContextFactory) { }
+            this(joiningOption: DbContextScopeOption.JoinExisting, readOnly: false, isolationLevel: null, dbContextFactory: dbContextFactory)
+        { }
 
         public DbContextScope(bool readOnly, IDbContextFactory dbContextFactory = null)
             : this(joiningOption: DbContextScopeOption.JoinExisting, readOnly: readOnly, isolationLevel: null, dbContextFactory: dbContextFactory) { }
 
-        public DbContextScope(DbContextScopeOption joiningOption, bool readOnly, IsolationLevel? isolationLevel, IDbContextFactory dbContextFactory = null) {
+        public DbContextScope(DbContextScopeOption joiningOption, bool readOnly, IsolationLevel? isolationLevel, IDbContextFactory dbContextFactory = null)
+        {
             if (isolationLevel.HasValue && joiningOption == DbContextScopeOption.JoinExisting)
                 throw new ArgumentException("Cannot join an ambient DbContextScope when an explicit database transaction is required. When requiring explicit database transactions to be used (i.e. when the 'isolationLevel' parameter is set), you must not also ask to join the ambient context (i.e. the 'joinAmbient' parameter must be set to false).");
 
@@ -41,14 +45,18 @@ namespace EntityFrameworkCore.DbContextScope {
             _readOnly = readOnly;
 
             _parentScope = GetAmbientScope();
-            if (_parentScope != null && joiningOption == DbContextScopeOption.JoinExisting) {
-                if (_parentScope._readOnly && !this._readOnly) {
+            if (_parentScope != null && joiningOption == DbContextScopeOption.JoinExisting)
+            {
+                if (_parentScope._readOnly && !this._readOnly)
+                {
                     throw new InvalidOperationException("Cannot nest a read/write DbContextScope within a read-only DbContextScope.");
                 }
 
                 _nested = true;
                 _dbContexts = _parentScope._dbContexts;
-            } else {
+            }
+            else
+            {
                 _nested = false;
                 _dbContexts = new DbContextCollection(readOnly, isolationLevel, dbContextFactory);
             }
@@ -56,7 +64,8 @@ namespace EntityFrameworkCore.DbContextScope {
             SetAmbientScope(this);
         }
 
-        public int SaveChanges() {
+        public int SaveChanges()
+        {
             if (_disposed)
                 throw new ObjectDisposedException("DbContextScope");
             if (_completed)
@@ -65,7 +74,8 @@ namespace EntityFrameworkCore.DbContextScope {
             // Only save changes if we're not a nested scope. Otherwise, let the top-level scope 
             // decide when the changes should be saved.
             var c = 0;
-            if (!_nested) {
+            if (!_nested)
+            {
                 c = CommitInternal();
             }
 
@@ -74,11 +84,13 @@ namespace EntityFrameworkCore.DbContextScope {
             return c;
         }
 
-        public Task<int> SaveChangesAsync() {
+        public Task<int> SaveChangesAsync()
+        {
             return SaveChangesAsync(CancellationToken.None);
         }
 
-        public async Task<int> SaveChangesAsync(CancellationToken cancelToken) {
+        public async Task<int> SaveChangesAsync(CancellationToken cancelToken)
+        {
             //if (cancelToken == null)
             //    throw new ArgumentNullException("cancelToken");
             if (_disposed)
@@ -89,7 +101,8 @@ namespace EntityFrameworkCore.DbContextScope {
             // Only save changes if we're not a nested scope. Otherwise, let the top-level scope 
             // decide when the changes should be saved.
             var c = 0;
-            if (!_nested) {
+            if (!_nested)
+            {
                 c = await CommitInternalAsync(cancelToken).ConfigureAwait(false);
             }
 
@@ -97,19 +110,23 @@ namespace EntityFrameworkCore.DbContextScope {
             return c;
         }
 
-        private int CommitInternal() {
+        private int CommitInternal()
+        {
             return _dbContexts.Commit();
         }
 
-        private Task<int> CommitInternalAsync(CancellationToken cancelToken) {
+        private Task<int> CommitInternalAsync(CancellationToken cancelToken)
+        {
             return _dbContexts.CommitAsync(cancelToken);
         }
 
-        private void RollbackInternal() {
+        private void RollbackInternal()
+        {
             _dbContexts.Rollback();
         }
 
-        public void RefreshEntitiesInParentScope(IEnumerable entities) {
+        public void RefreshEntitiesInParentScope(IEnumerable entities)
+        {
             if (entities == null)
                 return;
 
@@ -134,7 +151,8 @@ namespace EntityFrameworkCore.DbContextScope {
             // So we must cast the DbContext instances to IObjectContextAdapter in order to access their ObjectContext.
             // This cast is completely safe.
 
-            foreach (var contextInCurrentScope in _dbContexts.InitializedDbContexts.Values) {
+            foreach (var contextInCurrentScope in _dbContexts.InitializedDbContexts.Values)
+            {
                 var correspondingParentContext =
                     _parentScope._dbContexts.InitializedDbContexts.Values.SingleOrDefault(parentContext => parentContext.GetType() == contextInCurrentScope.GetType())
                     as DbContext;
@@ -150,8 +168,9 @@ namespace EntityFrameworkCore.DbContextScope {
                     // First, we need to find what the EntityKey for this entity is. 
                     // We need this EntityKey in order to check if this entity has
                     // already been loaded in the parent DbContext's first-level cache (the ObjectStateManager).
-                    var stateInCurrentScope = (contextInCurrentScope as Microsoft.EntityFrameworkCore.Internal.IDbContextDependencies).StateManager.TryGetEntry(toRefresh);
-                    if (stateInCurrentScope != null) {
+                    var stateInCurrentScope = ((Microsoft.EntityFrameworkCore.Internal.IDbContextDependencies)contextInCurrentScope).StateManager.TryGetEntry(toRefresh);
+                    if (stateInCurrentScope != null)
+                    {
                         // NOTE(tim): Thanks to ninety7 (https://github.com/ninety7/DbContextScope) and apawsey (https://github.com/apawsey/DbContextScope)
                         // for examples on how identify the matching entities in EF Core.
                         var entityType = stateInCurrentScope.Entity.GetType();
@@ -161,21 +180,21 @@ namespace EntityFrameworkCore.DbContextScope {
                             .ToArray();
 
                         // Now we can see if that entity exists in the parent DbContext instance and refresh it.
-                        var stateInParentScope = (correspondingParentContext as Microsoft.EntityFrameworkCore.Internal.IDbContextDependencies).StateManager.TryGetEntry(key, keyValues);
-                        if (stateInParentScope != null) {
+                        var stateInParentScope = ((Microsoft.EntityFrameworkCore.Internal.IDbContextDependencies)correspondingParentContext).StateManager.TryGetEntry(key, keyValues);
+                        if (stateInParentScope is { EntityState: EntityState.Unchanged })
                             // Only refresh the entity in the parent DbContext from the database if that entity hasn't already been
                             // modified in the parent. Otherwise, let the whatever concurency rules the application uses
                             // apply.
-                            if (stateInParentScope.EntityState == EntityState.Unchanged) {
-                                correspondingParentContext.Entry(stateInParentScope.Entity).Reload();
-                            }
+                        {
+                            correspondingParentContext.Entry(stateInParentScope.Entity).Reload();
                         }
                     }
                 }
             }
         }
 
-        public async Task RefreshEntitiesInParentScopeAsync(IEnumerable entities) {
+        public async Task RefreshEntitiesInParentScopeAsync(IEnumerable entities)
+        {
             // See comments in the sync version of this method for an explanation of what we're doing here.
 
             if (entities == null)
@@ -187,54 +206,63 @@ namespace EntityFrameworkCore.DbContextScope {
             if (_nested)
                 return;
 
-            foreach (var contextInCurrentScope in _dbContexts.InitializedDbContexts.Values) {
+            foreach (var contextInCurrentScope in _dbContexts.InitializedDbContexts.Values)
+            {
                 var correspondingParentContext =
-                    _parentScope._dbContexts.InitializedDbContexts.Values.SingleOrDefault(parentContext => parentContext.GetType() == contextInCurrentScope.GetType())
-                    as DbContext;
+                    _parentScope._dbContexts.InitializedDbContexts.Values.SingleOrDefault(parentContext => parentContext.GetType() == contextInCurrentScope.GetType());
 
                 if (correspondingParentContext == null)
                     continue;
 
                 foreach (var toRefresh in entities)
                 {
-                    var stateInCurrentScope = (contextInCurrentScope as Microsoft.EntityFrameworkCore.Internal.IDbContextDependencies).StateManager.TryGetEntry(toRefresh);
-                    if (stateInCurrentScope != null) {
-                        var entityType = stateInCurrentScope.Entity.GetType();
-                        var key = stateInCurrentScope.EntityType.FindPrimaryKey();
-                        var keyValues = key.Properties
-                            .Select(s => entityType.GetProperty(s.Name).GetValue(stateInCurrentScope.Entity))
-                            .ToArray();
+                    var stateInCurrentScope = ((Microsoft.EntityFrameworkCore.Internal.IDbContextDependencies)contextInCurrentScope).StateManager.TryGetEntry(toRefresh);
+                    if (stateInCurrentScope == null)
+                        continue;
+                    var entityType = stateInCurrentScope.Entity.GetType();
+                    var key = stateInCurrentScope.EntityType.FindPrimaryKey();
+                    var keyValues = key.Properties
+                        .Select(s => entityType.GetProperty(s.Name).GetValue(stateInCurrentScope.Entity))
+                        .ToArray();
 
-                        var stateInParentScope = (correspondingParentContext as Microsoft.EntityFrameworkCore.Internal.IDbContextDependencies).StateManager.TryGetEntry(key, keyValues);
-                        if (stateInParentScope != null) {
-                            if (stateInParentScope.EntityState == EntityState.Unchanged) {
-                                await correspondingParentContext.Entry(stateInParentScope.Entity).ReloadAsync().ConfigureAwait(false);
-                            }
-                        }
-                    }
+                    var stateInParentScope = (correspondingParentContext as Microsoft.EntityFrameworkCore.Internal.IDbContextDependencies).StateManager.TryGetEntry(key, keyValues);
+                    if (stateInParentScope == null)
+                        continue;
+                    if (stateInParentScope.EntityState != EntityState.Unchanged)
+                        continue;
+                    await correspondingParentContext.Entry(stateInParentScope.Entity).ReloadAsync().ConfigureAwait(false);
                 }
             }
         }
 
-        public void Dispose() {
+        public void Dispose()
+        {
             if (_disposed)
                 return;
 
             // Commit / Rollback and dispose all of our DbContext instances
-            if (!_nested) {
-                if (!_completed) {
+            if (!_nested)
+            {
+                if (!_completed)
+                {
                     // Do our best to clean up as much as we can but don't throw here as it's too late anyway.
-                    try {
-                        if (_readOnly) {
+                    try
+                    {
+                        if (_readOnly)
+                        {
                             // Disposing a read-only scope before having called its SaveChanges() method
                             // is the normal and expected behavior. Read-only scopes get committed automatically.
                             CommitInternal();
-                        } else {
+                        }
+                        else
+                        {
                             // Disposing a read/write scope before having called its SaveChanges() method
                             // indicates that something went wrong and that all changes should be rolled-back.
                             RollbackInternal();
                         }
-                    } catch (Exception e) {
+                    }
+                    catch (Exception e)
+                    {
                         System.Diagnostics.Debug.WriteLine(e);
                     }
 
@@ -251,8 +279,10 @@ namespace EntityFrameworkCore.DbContextScope {
 
             RemoveAmbientScope();
 
-            if (_parentScope != null) {
-                if (_parentScope._disposed) {
+            if (_parentScope != null)
+            {
+                if (_parentScope._disposed)
+                {
                     /*
                      * If our parent scope has been disposed before us, it can only mean one thing:
                      * someone started a parallel flow of execution and forgot to suppress the
@@ -299,7 +329,9 @@ Stack Trace:
 " + Environment.StackTrace;
 
                     System.Diagnostics.Debug.WriteLine(message);
-                } else {
+                }
+                else
+                {
                     SetAmbientScope(_parentScope);
                 }
             }
@@ -396,7 +428,8 @@ Stack Trace:
         /// <summary>
         /// Makes the provided 'dbContextScope' available as the the ambient scope via the CallContext.
         /// </summary>
-        internal static void SetAmbientScope(DbContextScope newAmbientScope) {
+        internal static void SetAmbientScope(DbContextScope newAmbientScope)
+        {
             if (newAmbientScope == null)
                 throw new ArgumentNullException("newAmbientScope");
 
@@ -417,12 +450,14 @@ Stack Trace:
         /// Clears the ambient scope from the CallContext and stops tracking its instance. 
         /// Call this when a DbContextScope is being disposed.
         /// </summary>
-        internal static void RemoveAmbientScope() {
+        internal static void RemoveAmbientScope()
+        {
             var current = CallContext.GetData(AmbientDbContextScopeKey) as InstanceIdentifier;
             CallContext.SetData(AmbientDbContextScopeKey, null);
 
             // If there was an ambient scope, we can stop tracking it now
-            if (current != null) {
+            if (current != null)
+            {
                 DbContextScopeInstances.Remove(current);
             }
         }
@@ -431,14 +466,16 @@ Stack Trace:
         /// Clears the ambient scope from the CallContext but keeps tracking its instance. Call this to temporarily 
         /// hide the ambient context (e.g. to prevent it from being captured by parallel task).
         /// </summary>
-        internal static void HideAmbientScope() {
+        internal static void HideAmbientScope()
+        {
             CallContext.SetData(AmbientDbContextScopeKey, null);
         }
 
         /// <summary>
         /// Get the current ambient scope or null if no ambient scope has been setup.
         /// </summary>
-        internal static DbContextScope GetAmbientScope() {
+        internal static DbContextScope GetAmbientScope()
+        {
             // Retrieve the identifier of the ambient scope (if any)
             var instanceIdentifier = CallContext.GetData(AmbientDbContextScopeKey) as InstanceIdentifier;
             if (instanceIdentifier == null)
